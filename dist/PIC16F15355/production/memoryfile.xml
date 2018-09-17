@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project>
-  <executable name="dist/PIC16F15355/production/PIC.production.hex">
+  <executable name="dist/PIC16F15355/production/Pic-Firmware.production.hex">
     <memory name="program">
       <units>words</units>
       <length>8192</length>
-      <used>1410</used>
-      <free>6782</free>
+      <used>1470</used>
+      <free>6722</free>
     </memory>
     <memory name="data">
       <units>bytes</units>
       <length>1024</length>
-      <used>95</used>
-      <free>929</free>
+      <used>111</used>
+      <free>913</free>
     </memory>
   </executable>
 </project>

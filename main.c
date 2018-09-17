@@ -8,8 +8,10 @@
 #include <stdint.h>        /* For uint8_t definition */
 #include <stdbool.h>       /* For true/false definition */
 
-#define SWITCH_ENABLE       LATAbits.LATA4
-#define SWITCH_FASTTURNOFF  LATAbits.LATA5
+#define SWITCH_ENABLE       LATAbits.LATA0  // Valid for Icarus V.01  
+#define SWITCH_FASTTURNOFF  LATAbits.LATA1  // Valid for Icarus V.01
+//#define SWITCH_ENABLE       LATAbits.LATA4  // Valid for Icarus mini  
+//#define SWITCH_FASTTURNOFF  LATAbits.LATA5  // Valid for Icarus mini
 #define SWITCH_CHARGEPUMP   LATAbits.LATA2
 #define DISABLE_CHARGER     LATAbits.LATA3
 #define ESC_MONITOR         PORTBbits.RB3
@@ -17,8 +19,10 @@
 #define STAT2               PORTCbits.RC6
 #define BATMON_ALERT        PORTCbits.RC1
 
-#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA4
-#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA5
+#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA0 // Valid for Icarus V.01
+#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA1 // Valid for Icarus V.01
+//#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA4 // Valid for Icarus mini
+//#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA5 // Valid for Icarus mini
 #define SWITCH_CHARGEPUMP_TRIS  TRISAbits.TRISA2
 #define DISABLE_CHARGER_TRIS    TRISAbits.TRISA3
 
@@ -98,6 +102,7 @@ void I2C_Turnon(void)
     SSP2CON3bits.BOEN = 1;
     SSP2CON1bits.CKP = 1;
     PIR3bits.SSP2IF = 0;
+    PIE3bits.SSP2IE = 1;
     SSP2ADD = 0x12<<1;
     SSP2MSK = 0xFF;
     ANSELB = 0;
@@ -139,23 +144,26 @@ void setOscillator(unsigned char mode)
 
 void goToBed(unsigned long long timer)
 {
-    Turnoff();
-    WDTCON1bits.WDTCS = 0x0;
-    WDTCON1bits.WINDOW = 0x7;
-    WDTCON0bits.WDTPS = 0xa; //~1s par timeout
-    setOscillator(LOW_POWER);
-    WDTCON0bits.SWDTEN = 1; //active watchdog
-    
-    unsigned long long i = 0;
-    while(i < timer && !CHARGE_COMPLETE && !CHARGE_SUSPEND)
+    if(!CHARGE_COMPLETE)
     {
-        SLEEP();
-        i++;
+        Turnoff();
+        WDTCON1bits.WDTCS = 0x0;
+        WDTCON1bits.WINDOW = 0x7;
+        WDTCON0bits.WDTPS = 0xa; //~1s par timeout
+        setOscillator(LOW_POWER);
+        WDTCON0bits.SWDTEN = 1; //active watchdog
+
+        unsigned long long i = 0;
+        while(i < timer && !CHARGE_COMPLETE)
+        {
+            SLEEP();
+            i++;
+        }
+
+        WDTCON0bits.SWDTEN = 0; //active watchdog
+        setOscillator(HIGH_POWER);
+        Turnon();
     }
-    
-    WDTCON0bits.SWDTEN = 0; //active watchdog
-    setOscillator(HIGH_POWER);
-    Turnon();
 }
 
 void ESC_monitor_Turnon(void)
@@ -195,38 +203,7 @@ void ESC_monitor_Turnoff(void)
 
 void I2C_Manage(void)
 {
-    if(PIR3bits.SSP2IF)
-    {
-        unsigned char bidon = 0;
-        PIR3bits.SSP2IF = 0;
-        bidon = SSP2BUF;
-        SSP2CON1bits.CKP = 1;
-        if(SSP2STATbits.D_nA == 0 && bidon == (SSP2ADD & 0xFE))
-        {
-            I2C_receiving = 1;
-            I2C_dataCounter = 0;
-        }
-        else if(SSP2STATbits.D_nA == 0 && bidon != (SSP2ADD & 0xFE)) 
-        {
-            I2C_receiving = 0;
-        }
-        
-        if(I2C_receiving && SSP2STATbits.DA == 1)
-        {
-            I2C_data[I2C_dataCounter++] = bidon;
-        }
 
-        if(I2C_receiving && SSP2STATbits.DA == 1 && SSP2STATbits.P == 1)
-        {
-            I2C_receiving = 0;
-            //execute
-            if(I2C_dataCounter == 5 && I2C_data[0] == 0x31)
-            {//verification que sleep mode is allowed
-                if(turnoffAllowed == 1)
-                    goToBed((unsigned long long)I2C_data[1]<<24 | (unsigned long long)I2C_data[2]<<16 | (unsigned long long)I2C_data[3]<<8 | (unsigned long long)I2C_data[4]<<0);
-            }
-        }
-    }
 }
 
 void ESC_monitor_Manage(void)
@@ -278,7 +255,7 @@ void Turnon(void)
     PMD1 = 0xfe;
     PMD2 = 0xff;
     PMD3 = 0xff;
-    PMD4 = 0xef;
+    PMD4 = 0xdf;
     PMD5 = 0xff;
     OSCFRQ = 5;
     VREGCONbits.VREGPM = 1;
@@ -325,6 +302,8 @@ void main(void)
     STAT2_TRIS = 1;
     BATMON_ALERT_TRIS = 1;
     
+    ANSELC = 0; 
+    
     turnoffAllowed = 0;
     
     Turnon();
@@ -345,7 +324,7 @@ void main(void)
     
     PEIE = 1;    
     GIE = 1;
-
+    I2C_Turnon();
     Turnoff();
     Turnon();
     
@@ -390,6 +369,39 @@ void __interrupt () isr(void)
             TMR0L = 0x00;
             T0CON0bits.T0EN = 1;
         }
-    }  
+    }
+    
+    if(PIR3bits.SSP2IF)
+    {
+        unsigned char bidon = 0;
+        PIR3bits.SSP2IF = 0;
+        bidon = SSP2BUF;
+        SSP2CON1bits.CKP = 1;
+        if(SSP2STATbits.D_nA == 0 && bidon == (SSP2ADD & 0xFE))
+        {
+            I2C_receiving = 1;
+            I2C_dataCounter = 0;
+        }
+        else if(SSP2STATbits.D_nA == 0 && bidon != (SSP2ADD & 0xFE)) 
+        {
+            I2C_receiving = 0;
+        }
+        
+        if(I2C_receiving && SSP2STATbits.DA == 1)
+        {
+            I2C_data[I2C_dataCounter++] = bidon;
+        }
+
+        if(I2C_receiving && SSP2STATbits.DA == 1 && SSP2STATbits.P == 1)
+        {
+            I2C_receiving = 0;
+            //execute
+            if(I2C_dataCounter == 5 && I2C_data[0] == 0x31)
+            {//verification que sleep mode is allowed
+                if(turnoffAllowed == 1)
+                    goToBed((unsigned long long)I2C_data[1]<<24 | (unsigned long long)I2C_data[2]<<16 | (unsigned long long)I2C_data[3]<<8 | (unsigned long long)I2C_data[4]<<0);
+            }
+        }
+    }
 }
 
