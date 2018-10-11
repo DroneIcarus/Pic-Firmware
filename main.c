@@ -8,10 +8,10 @@
 #include <stdint.h>        /* For uint8_t definition */
 #include <stdbool.h>       /* For true/false definition */
 
-#define SWITCH_ENABLE       LATAbits.LATA0  // Valid for Icarus V.01  
-#define SWITCH_FASTTURNOFF  LATAbits.LATA1  // Valid for Icarus V.01
-//#define SWITCH_ENABLE       LATAbits.LATA4  // Valid for Icarus mini  
-//#define SWITCH_FASTTURNOFF  LATAbits.LATA5  // Valid for Icarus mini
+// #define SWITCH_ENABLE       LATAbits.LATA0  // Valid for Icarus V.01  
+// #define SWITCH_FASTTURNOFF  LATAbits.LATA1  // Valid for Icarus V.01
+#define SWITCH_ENABLE       LATAbits.LATA4  // Valid for Icarus mini  
+#define SWITCH_FASTTURNOFF  LATAbits.LATA5  // Valid for Icarus mini
 #define SWITCH_CHARGEPUMP   LATAbits.LATA2
 #define DISABLE_CHARGER     LATAbits.LATA3
 #define ESC_MONITOR         PORTBbits.RB3
@@ -19,10 +19,10 @@
 #define STAT2               PORTCbits.RC6
 #define BATMON_ALERT        PORTCbits.RC1
 
-#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA0 // Valid for Icarus V.01
-#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA1 // Valid for Icarus V.01
-//#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA4 // Valid for Icarus mini
-//#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA5 // Valid for Icarus mini
+// #define SWITCH_ENABLE_TRIS      TRISAbits.TRISA0 // Valid for Icarus V.01
+// #define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA1 // Valid for Icarus V.01
+#define SWITCH_ENABLE_TRIS      TRISAbits.TRISA4 // Valid for Icarus mini
+#define SWITCH_FASTTURNOFF_TRIS TRISAbits.TRISA5 // Valid for Icarus mini
 #define SWITCH_CHARGEPUMP_TRIS  TRISAbits.TRISA2
 #define DISABLE_CHARGER_TRIS    TRISAbits.TRISA3
 
@@ -146,12 +146,13 @@ void goToBed(unsigned long long timer)
 {
     if(!CHARGE_COMPLETE)
     {
+        
         Turnoff();
         WDTCON1bits.WDTCS = 0x0;
         WDTCON1bits.WINDOW = 0x7;
         WDTCON0bits.WDTPS = 0xa; //~1s par timeout
         setOscillator(LOW_POWER);
-        WDTCON0bits.SWDTEN = 1; //active watchdog
+        WDTCON0bits.SWDTEN = 1; //active watchdog*/
 
         unsigned long long i = 0;
         while(i < timer && !CHARGE_COMPLETE)
@@ -164,6 +165,7 @@ void goToBed(unsigned long long timer)
         setOscillator(HIGH_POWER);
         Turnon();
     }
+
 }
 
 void ESC_monitor_Turnon(void)
@@ -267,6 +269,9 @@ void Turnon(void)
 
 void Turnoff(void)
 {
+    PIR3bits.SSP2IF = 0;
+    PIE3bits.SSP2IE = 0;
+    SSP2CON3bits.PCIE = 0;
     ESC_monitor_Turnoff();
     Switch_Turnoff();
     PMD0 = 0x7f;
@@ -400,6 +405,9 @@ void __interrupt () isr(void)
             {//verification que sleep mode is allowed
                 if(turnoffAllowed == 1)
                     goToBed((unsigned long long)I2C_data[1]<<24 | (unsigned long long)I2C_data[2]<<16 | (unsigned long long)I2C_data[3]<<8 | (unsigned long long)I2C_data[4]<<0);
+                    for(int i=0; i< 16; i++)
+                        I2C_data[i] = 0;
+                        
             }
         }
     }
