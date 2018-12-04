@@ -38,7 +38,7 @@
 #define LOW_POWER 0
 #define HIGH_POWER 1
 
-#define ESC_MONITOR_DC_MAX_FOR_DODO 0.053
+#define ESC_MONITOR_DC_MAX_FOR_DODO 0.056//0.053 PLC 12-04-2018 corrected to prevent false detection
 #define CHARGE_IN_PROGRESS    (!STAT1 && STAT2)
 #define CHARGE_COMPLETE       (STAT1 && !STAT2)
 #define CHARGE_SUSPEND        (STAT1 && STAT2)
@@ -219,7 +219,7 @@ void ESC_monitor_Manage(void)
         ESC_period_over = 0;
 
         temps_on = ESC_period_high_bkp;
-        temps_off = ESC_period_low_bkp; 
+        temps_off = ESC_period_low_bkp;
         duty_cycle = (float)temps_on / (float)temps_off; //8192 est 100%
 
         if(duty_cycle <= maxDodo) //PWM freq. entre 40Hz et 200Hz, periode high entre 1.11ms et 909us pour �tre "valide"
